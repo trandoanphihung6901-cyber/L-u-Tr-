@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Flow Kiến Trúc AI Studio Helper",
+  "version": "0.1.0",
+  "description": "Điền prompt thủ công vào Google Flow từ Flow Kiến Trúc AI Studio — không chứa API key.",
+  "permissions": ["activeTab", "scripting", "storage", "clipboardRead", "clipboardWrite"],
+  "host_permissions": ["https://labs.google/fx/tools/flow/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Flow Kiến Trúc AI"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://labs.google/fx/tools/flow/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
