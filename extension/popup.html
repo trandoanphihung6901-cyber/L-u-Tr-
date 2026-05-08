@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flow Kiến Trúc AI</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main>
+    <h1>Flow Kiến Trúc AI</h1>
+    <p class="muted">Helper chỉ copy/điền prompt vào Google Flow. Không lưu OpenAI API key.</p>
+    <textarea id="prompt" placeholder="Dán prompt JSON hoặc bấm Copy prompt từ app rồi mở extension..."></textarea>
+    <div class="grid">
+      <button id="copyPrompt">Copy prompt</button>
+      <button id="fillPrompt">Điền prompt vào Google Flow</button>
+      <button id="reloadFlow">Reload Flow</button>
+      <button id="openApp">Mở app</button>
+    </div>
+    <label>Đánh dấu ảnh đã chọn là @IMAGE_X</label>
+    <div class="row">
+      <input id="imageName" value="@IMAGE_1" />
+      <button id="markImage">Đánh dấu</button>
+    </div>
+    <p id="status"></p>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>
