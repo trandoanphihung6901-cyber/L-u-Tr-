@@ -25,6 +25,18 @@ jobs:
         with:
           ref: pcg-ai-marketing-v1
 
+      - name: Normalize source for compiler
+        shell: pwsh
+        run: |
+          $path = 'PCGAIMarketing/Program.cs'
+          $lines = Get-Content $path
+          $lines = $lines | ForEach-Object {
+            if ($_ -like '*Trả JSON thuần:*') {
+              'Trả về một JSON object có trường items; mỗi phần tử gồm title, hook, body, cta, hashtags và imagePrompt.'
+            } else { $_ }
+          }
+          Set-Content -Path $path -Value $lines -Encoding utf8
+
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
