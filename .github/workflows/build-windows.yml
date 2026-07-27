@@ -1,0 +1,56 @@
+name: Build PCG AI Marketing Windows
+
+on:
+  push:
+    branches:
+      - pcg-ai-marketing-v1
+    paths-ignore:
+      - releases/**
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore PCGAIMarketing/PCGAIMarketing.csproj
+
+      - name: Publish single Windows executable
+        run: dotnet publish PCGAIMarketing/PCGAIMarketing.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
+
+      - name: Prepare release executable
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force releases | Out-Null
+          Copy-Item publish/PCG_AI_Marketing.exe releases/PCG_AI_Marketing_Windows_x64.exe -Force
+
+      - name: Upload downloadable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PCG-AI-Marketing-Windows-x64
+          path: releases/PCG_AI_Marketing_Windows_x64.exe
+          if-no-files-found: error
+
+      - name: Commit executable to development branch
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add releases/PCG_AI_Marketing_Windows_x64.exe
+          git diff --cached --quiet
+          if ($LASTEXITCODE -ne 0) {
+            git commit -m "build: publish Windows executable [skip ci]"
+            git push
+          }
