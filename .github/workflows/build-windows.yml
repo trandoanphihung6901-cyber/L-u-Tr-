@@ -6,6 +6,7 @@ on:
       - pcg-ai-marketing-v1
     paths-ignore:
       - releases/**
+      - diagnostics/**
   pull_request:
     branches:
       - main
@@ -33,7 +34,29 @@ jobs:
         run: dotnet restore PCGAIMarketing/PCGAIMarketing.csproj
 
       - name: Publish single Windows executable
-        run: dotnet publish PCGAIMarketing/PCGAIMarketing.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
+        id: publish
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          dotnet publish PCGAIMarketing/PCGAIMarketing.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish 2>&1 | Tee-Object -FilePath build.log
+          exit $LASTEXITCODE
+
+      - name: Save diagnostics to branch
+        if: steps.publish.outcome == 'failure' && github.event_name == 'push'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force diagnostics | Out-Null
+          Copy-Item build.log diagnostics/latest-build.log -Force
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add diagnostics/latest-build.log
+          git commit -m "ci: save latest build diagnostics [skip ci]"
+          git push origin HEAD:pcg-ai-marketing-v1
+
+      - name: Stop after failed build
+        if: steps.publish.outcome == 'failure'
+        shell: pwsh
+        run: exit 1
 
       - name: Prepare release executable
         shell: pwsh
