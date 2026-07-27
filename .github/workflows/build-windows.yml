@@ -6,6 +6,9 @@ on:
       - pcg-ai-marketing-v1
     paths-ignore:
       - releases/**
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -18,6 +21,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: pcg-ai-marketing-v1
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
@@ -44,6 +49,7 @@ jobs:
           if-no-files-found: error
 
       - name: Commit executable to development branch
+        if: github.event_name == 'push'
         shell: pwsh
         run: |
           git config user.name "github-actions[bot]"
@@ -52,5 +58,5 @@ jobs:
           git diff --cached --quiet
           if ($LASTEXITCODE -ne 0) {
             git commit -m "build: publish Windows executable [skip ci]"
-            git push
+            git push origin HEAD:pcg-ai-marketing-v1
           }
