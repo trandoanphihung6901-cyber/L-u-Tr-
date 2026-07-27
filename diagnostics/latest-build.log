@@ -1,0 +1,5 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+D:\a\L-u-Tr-\L-u-Tr-\PCGAIMarketing\Program.cs(202,17): error CS9006: The interpolated raw string literal does not start with enough '$' characters to allow this many consecutive opening braces as content. [D:\a\L-u-Tr-\L-u-Tr-\PCGAIMarketing\PCGAIMarketing.csproj]
+D:\a\L-u-Tr-\L-u-Tr-\PCGAIMarketing\Program.cs(202,19): error CS1733: Expected expression [D:\a\L-u-Tr-\L-u-Tr-\PCGAIMarketing\PCGAIMarketing.csproj]
+D:\a\L-u-Tr-\L-u-Tr-\PCGAIMarketing\Program.cs(202,30): error CS1733: Expected expression [D:\a\L-u-Tr-\L-u-Tr-\PCGAIMarketing\PCGAIMarketing.csproj]
