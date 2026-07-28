@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - pcg-ai-marketing-v1
+      - main
     paths-ignore:
       - releases/**
       - diagnostics/**
@@ -23,24 +24,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: pcg-ai-marketing-v1
+          ref: ${{ github.ref_name }}
 
       - name: Apply compatibility and API diagnostics upgrade
         shell: pwsh
         run: |
           $path = 'PCGAIMarketing/Program.cs'
           $content = Get-Content $path -Raw
-
-          # Avoid raw interpolated-string brace parsing issue in the original prompt.
           $content = $content -replace '(?m)^Trả JSON thuần:.*$', 'Trả về một JSON object có trường items; mỗi phần tử gồm title, hook, body, cta, hashtags và imagePrompt.'
-
-          # Normalize pasted keys before every API request (spaces, quotes, hidden characters).
           $content = $content.Replace('var key = Crypto.Unprotect(settings.OpenAiKey);', 'var key = OpenAiKey.Normalize(Crypto.Unprotect(settings.OpenAiKey));')
-
-          # Upgrade the settings button wording.
           $content = $content.Replace('var save = Button("LƯU CÀI ĐẶT", true);', 'var save = Button("KIỂM TRA API & LƯU", true);')
-
-          # Validate API key, project, billing/model access before saving.
           $old = 'if (!string.IsNullOrWhiteSpace(_apiKey.Password)) _data.Settings.OpenAiKey = Crypto.Protect(_apiKey.Password.Trim());'
           $new = @'
           if (!string.IsNullOrWhiteSpace(_apiKey.Password))
@@ -56,7 +49,6 @@ jobs:
 '@
           if (-not $content.Contains($old)) { throw 'Không tìm thấy đoạn SaveSettings cần nâng cấp.' }
           $content = $content.Replace($old, $new.TrimEnd())
-
           Set-Content -Path $path -Value $content -Encoding utf8
 
       - name: Setup .NET 8
@@ -85,7 +77,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add diagnostics/latest-build.log
           git commit -m "ci: save latest build diagnostics [skip ci]"
-          git push origin HEAD:pcg-ai-marketing-v1
+          git push origin HEAD:${{ github.ref_name }}
 
       - name: Stop after failed build
         if: steps.publish.outcome == 'failure'
@@ -105,7 +97,7 @@ jobs:
           path: releases/PCG_AI_Marketing_v1.1_Windows_x64.exe
           if-no-files-found: error
 
-      - name: Commit executable to development branch
+      - name: Commit executable to current branch
         if: github.event_name == 'push'
         shell: pwsh
         run: |
@@ -115,5 +107,5 @@ jobs:
           git diff --cached --quiet
           if ($LASTEXITCODE -ne 0) {
             git commit -m "build: publish PCG AI Marketing v1.1 [skip ci]"
-            git push origin HEAD:pcg-ai-marketing-v1
+            git push origin HEAD:${{ github.ref_name }}
           }
