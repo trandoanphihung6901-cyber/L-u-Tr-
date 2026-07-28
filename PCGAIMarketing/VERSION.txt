@@ -1,0 +1,5 @@
+PCG AI Marketing v1.1.0
+- Chuẩn hóa API key dạng sk-proj
+- Kiểm tra key, project, model và billing trước khi lưu
+- Hiển thị lỗi OpenAI rõ ràng bằng tiếng Việt
+- Tự loại bỏ khoảng trắng và ký tự ẩn khi dán key
