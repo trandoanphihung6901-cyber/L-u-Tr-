@@ -1,0 +1,111 @@
+name: Build PCG AI Marketing Windows
+
+on:
+  push:
+    branches:
+      - pcg-ai-marketing-v1
+      - main
+    paths-ignore:
+      - releases/**
+      - diagnostics/**
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Apply compatibility and API diagnostics upgrade
+        shell: pwsh
+        run: |
+          $path = 'PCGAIMarketing/Program.cs'
+          $content = Get-Content $path -Raw
+          $content = $content -replace '(?m)^Trả JSON thuần:.*$', 'Trả về một JSON object có trường items; mỗi phần tử gồm title, hook, body, cta, hashtags và imagePrompt.'
+          $content = $content.Replace('var key = Crypto.Unprotect(settings.OpenAiKey);', 'var key = OpenAiKey.Normalize(Crypto.Unprotect(settings.OpenAiKey));')
+          $content = $content.Replace('var save = Button("LƯU CÀI ĐẶT", true);', 'var save = Button("KIỂM TRA API & LƯU", true);')
+          $old = 'if (!string.IsNullOrWhiteSpace(_apiKey.Password)) _data.Settings.OpenAiKey = Crypto.Protect(_apiKey.Password.Trim());'
+          $new = @'
+          if (!string.IsNullOrWhiteSpace(_apiKey.Password))
+          {
+              var normalizedKey = OpenAiKey.Normalize(_apiKey.Password);
+              OpenAiKey.EnsureLooksValid(normalizedKey);
+              _status.Text = "Đang kiểm tra API key, project và quyền model...";
+              var diagnostics = new OpenAiDiagnostics();
+              var confirmation = await diagnostics.ValidateAsync(normalizedKey, _textModel.Text.Trim(), _imageModel.Text.Trim(), CancellationToken.None);
+              _data.Settings.OpenAiKey = Crypto.Protect(normalizedKey);
+              _status.Text = confirmation;
+          }
+'@
+          if (-not $content.Contains($old)) { throw 'Không tìm thấy đoạn SaveSettings cần nâng cấp.' }
+          $content = $content.Replace($old, $new.TrimEnd())
+          Set-Content -Path $path -Value $content -Encoding utf8
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore PCGAIMarketing/PCGAIMarketing.csproj
+
+      - name: Publish single Windows executable
+        id: publish
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          dotnet publish PCGAIMarketing/PCGAIMarketing.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:Version=1.1.0 -o publish 2>&1 | Tee-Object -FilePath build.log
+          exit $LASTEXITCODE
+
+      - name: Save diagnostics to branch
+        if: steps.publish.outcome == 'failure' && github.event_name == 'push'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force diagnostics | Out-Null
+          Copy-Item build.log diagnostics/latest-build.log -Force
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add diagnostics/latest-build.log
+          git commit -m "ci: save latest build diagnostics [skip ci]"
+          git push origin HEAD:${{ github.ref_name }}
+
+      - name: Stop after failed build
+        if: steps.publish.outcome == 'failure'
+        shell: pwsh
+        run: exit 1
+
+      - name: Prepare release executable
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force releases | Out-Null
+          Copy-Item publish/PCG_AI_Marketing.exe releases/PCG_AI_Marketing_v1.1_Windows_x64.exe -Force
+
+      - name: Upload downloadable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PCG-AI-Marketing-v1.1-Windows-x64
+          path: releases/PCG_AI_Marketing_v1.1_Windows_x64.exe
+          if-no-files-found: error
+
+      - name: Commit executable to current branch
+        if: github.event_name == 'push'
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add releases/PCG_AI_Marketing_v1.1_Windows_x64.exe
+          git diff --cached --quiet
+          if ($LASTEXITCODE -ne 0) {
+            git commit -m "build: publish PCG AI Marketing v1.1 [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+          }
