@@ -25,17 +25,39 @@ jobs:
         with:
           ref: pcg-ai-marketing-v1
 
-      - name: Normalize source for compiler
+      - name: Apply compatibility and API diagnostics upgrade
         shell: pwsh
         run: |
           $path = 'PCGAIMarketing/Program.cs'
-          $lines = Get-Content $path
-          $lines = $lines | ForEach-Object {
-            if ($_ -like '*Trả JSON thuần:*') {
-              'Trả về một JSON object có trường items; mỗi phần tử gồm title, hook, body, cta, hashtags và imagePrompt.'
-            } else { $_ }
+          $content = Get-Content $path -Raw
+
+          # Avoid raw interpolated-string brace parsing issue in the original prompt.
+          $content = $content -replace '(?m)^Trả JSON thuần:.*$', 'Trả về một JSON object có trường items; mỗi phần tử gồm title, hook, body, cta, hashtags và imagePrompt.'
+
+          # Normalize pasted keys before every API request (spaces, quotes, hidden characters).
+          $content = $content.Replace('var key = Crypto.Unprotect(settings.OpenAiKey);', 'var key = OpenAiKey.Normalize(Crypto.Unprotect(settings.OpenAiKey));')
+
+          # Upgrade the settings button wording.
+          $content = $content.Replace('var save = Button("LƯU CÀI ĐẶT", true);', 'var save = Button("KIỂM TRA API & LƯU", true);')
+
+          # Validate API key, project, billing/model access before saving.
+          $old = 'if (!string.IsNullOrWhiteSpace(_apiKey.Password)) _data.Settings.OpenAiKey = Crypto.Protect(_apiKey.Password.Trim());'
+          $new = @'
+          if (!string.IsNullOrWhiteSpace(_apiKey.Password))
+          {
+              var normalizedKey = OpenAiKey.Normalize(_apiKey.Password);
+              OpenAiKey.EnsureLooksValid(normalizedKey);
+              _status.Text = "Đang kiểm tra API key, project và quyền model...";
+              var diagnostics = new OpenAiDiagnostics();
+              var confirmation = await diagnostics.ValidateAsync(normalizedKey, _textModel.Text.Trim(), _imageModel.Text.Trim(), CancellationToken.None);
+              _data.Settings.OpenAiKey = Crypto.Protect(normalizedKey);
+              _status.Text = confirmation;
           }
-          Set-Content -Path $path -Value $lines -Encoding utf8
+'@
+          if (-not $content.Contains($old)) { throw 'Không tìm thấy đoạn SaveSettings cần nâng cấp.' }
+          $content = $content.Replace($old, $new.TrimEnd())
+
+          Set-Content -Path $path -Value $content -Encoding utf8
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
@@ -50,7 +72,7 @@ jobs:
         continue-on-error: true
         shell: pwsh
         run: |
-          dotnet publish PCGAIMarketing/PCGAIMarketing.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish 2>&1 | Tee-Object -FilePath build.log
+          dotnet publish PCGAIMarketing/PCGAIMarketing.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:Version=1.1.0 -o publish 2>&1 | Tee-Object -FilePath build.log
           exit $LASTEXITCODE
 
       - name: Save diagnostics to branch
@@ -74,13 +96,13 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force releases | Out-Null
-          Copy-Item publish/PCG_AI_Marketing.exe releases/PCG_AI_Marketing_Windows_x64.exe -Force
+          Copy-Item publish/PCG_AI_Marketing.exe releases/PCG_AI_Marketing_v1.1_Windows_x64.exe -Force
 
       - name: Upload downloadable artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PCG-AI-Marketing-Windows-x64
-          path: releases/PCG_AI_Marketing_Windows_x64.exe
+          name: PCG-AI-Marketing-v1.1-Windows-x64
+          path: releases/PCG_AI_Marketing_v1.1_Windows_x64.exe
           if-no-files-found: error
 
       - name: Commit executable to development branch
@@ -89,9 +111,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add releases/PCG_AI_Marketing_Windows_x64.exe
+          git add releases/PCG_AI_Marketing_v1.1_Windows_x64.exe
           git diff --cached --quiet
           if ($LASTEXITCODE -ne 0) {
-            git commit -m "build: publish Windows executable [skip ci]"
+            git commit -m "build: publish PCG AI Marketing v1.1 [skip ci]"
             git push origin HEAD:pcg-ai-marketing-v1
           }
